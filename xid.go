@@ -13,17 +13,18 @@ func GenerateXid(name string) string {
 	return xid.String()
 }
 
-// generates a unique ID
+// generates unique ID
 func GenerateID() string {
 	uxid := uxid.New()
 	return uxid.String()
 }
 
-// generates a unique UUID
+// generates unique UUID
 func GenerateUUID() string {
 	return uuid.New().String()
 }
 
+// generates SHA1 of the text
 func GenerateSHA1(text string) string {
 	xidNS := uuid.NewSHA1(uuid.NameSpaceURL, []byte(text))
 	xid := uuid.NewSHA1(xidNS, []byte(text))
