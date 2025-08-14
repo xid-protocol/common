@@ -5,6 +5,7 @@ go 1.24.4
 require (
 	github.com/colin-404/logx v0.1.2
 	github.com/go-resty/resty/v2 v2.16.5
+	github.com/google/uuid v1.6.0
 	github.com/rs/xid v1.6.0
 	go.mongodb.org/mongo-driver v1.17.4
 )
