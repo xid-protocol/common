@@ -14,7 +14,7 @@ func GenerateXid(name string) string {
 }
 
 // generates a unique ID
-func GenerateId() string {
+func GenerateID() string {
 	uxid := uxid.New()
 	return uxid.String()
 }
