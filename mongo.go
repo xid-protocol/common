@@ -6,16 +6,18 @@ import (
 
 	"github.com/colin-404/logx"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/gridfs"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var (
-	MongoClient *mongo.Client
-	MongoDB     *mongo.Database
+	MongoClient  *mongo.Client
+	MongoDB      *mongo.Database
+	GridFSBucket *gridfs.Bucket
 )
 
-// InitMongoDB 初始化MongoDB连接
-func InitMongoDB(dbName string, mongoURI string) error {
+// InitMongoDB initializes MongoDB connection, if image is true, it will initialize the GridFS bucket
+func InitMongoDB(dbName string, mongoURI string, image bool) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -38,10 +40,20 @@ func InitMongoDB(dbName string, mongoURI string) error {
 	MongoClient = client
 	MongoDB = client.Database(dbName)
 
+	// Initialize GridFS bucket
+	if image {
+		GridFSBucket, err = gridfs.NewBucket(MongoDB, options.GridFSBucket().SetName("images"))
+		if err != nil {
+			logx.Errorf("Failed to create GridFS bucket: %v", err)
+			return err
+		}
+		logx.Info("Successfully created GridFS bucket for images")
+	}
+
 	return nil
 }
 
-// CloseMongoDB
+// CloseMongoDB closes the MongoDB connection
 func CloseMongoDB() error {
 	if MongoClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -51,7 +63,7 @@ func CloseMongoDB() error {
 	return nil
 }
 
-// GetCollection
+// GetCollection returns a collection from the database
 func GetCollection(collectionName string) *mongo.Collection {
 	return MongoDB.Collection(collectionName)
 }
