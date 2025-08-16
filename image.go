@@ -29,16 +29,16 @@ var (
 
 // ImageMeta represents image metadata structure
 type ImageMeta struct {
-	ImageID      string             `bson:"image_id" json:"image_id"`                     // Image ID
-	GridFSID     primitive.ObjectID `bson:"gridfs_id" json:"gridfs_id"`                   // Internal GridFS ID
-	OriginalName string             `bson:"original_name" json:"original_name"`           // Original filename
-	ContentType  string             `bson:"content_type" json:"content_type"`             // MIME type
+	ImageID      string             `bson:"imageID" json:"imageID"`                       // Image ID
+	GridFSID     primitive.ObjectID `bson:"gridfsID" json:"gridfsID"`                     // Internal GridFS ID
+	OriginalName string             `bson:"originalName" json:"originalName"`             // Original filename
+	ContentType  string             `bson:"contentType" json:"contentType"`               // MIME type
 	Size         int64              `bson:"size" json:"size"`                             // File size in bytes
 	Checksum     string             `bson:"checksum" json:"checksum"`                     // SHA256 checksum
 	Tags         []string           `bson:"tags,omitempty" json:"tags,omitempty"`         // Tags
 	Metadata     map[string]any     `bson:"metadata,omitempty" json:"metadata,omitempty"` // Custom metadata
-	CreatedAt    time.Time          `bson:"created_at" json:"created_at"`                 // Creation time
-	UpdatedAt    time.Time          `bson:"updated_at" json:"updated_at"`                 // Update time
+	CreatedAt    time.Time          `bson:"createdAt" json:"createdAt"`                   // Creation time
+	UpdatedAt    time.Time          `bson:"updatedAt" json:"updatedAt"`                   // Update time
 }
 
 // ImageStore manages image storage operations
@@ -51,7 +51,7 @@ type ImageStore struct {
 func NewImageStore() *ImageStore {
 	return &ImageStore{
 		bucket:         GridFSBucket,
-		metaCollection: GetCollection("image_metadata"),
+		metaCollection: GetCollection("imageMetadata"),
 	}
 }
 
@@ -148,7 +148,7 @@ func (is *ImageStore) StoreImageFromReader(ctx context.Context, reader io.Reader
 // GetImageMeta retrieves image metadata by ID
 func (is *ImageStore) GetImageMeta(ctx context.Context, imageID string) (*ImageMeta, error) {
 	var imageMeta ImageMeta
-	err := is.metaCollection.FindOne(ctx, bson.M{"_id": imageID}).Decode(&imageMeta)
+	err := is.metaCollection.FindOne(ctx, bson.M{"imageID": imageID}).Decode(&imageMeta)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, ErrImageNotFound
@@ -233,7 +233,7 @@ func (is *ImageStore) DeleteImage(ctx context.Context, imageID string) error {
 	}
 
 	// Delete metadata
-	_, err = is.metaCollection.DeleteOne(ctx, bson.M{"_id": imageID})
+	_, err = is.metaCollection.DeleteOne(ctx, bson.M{"imageID": imageID})
 	if err != nil {
 		return fmt.Errorf("failed to delete metadata: %w", err)
 	}
@@ -256,7 +256,7 @@ func (is *ImageStore) ListImages(ctx context.Context, tags []string, limit, offs
 	if offset > 0 {
 		opts.SetSkip(offset)
 	}
-	opts.SetSort(bson.M{"created_at": -1}) // Sort by creation time descending
+	opts.SetSort(bson.M{"createdAt": -1}) // Sort by creation time descending
 
 	cursor, err := is.metaCollection.Find(ctx, filter, opts)
 	if err != nil {
@@ -284,12 +284,12 @@ func (is *ImageStore) ListImages(ctx context.Context, tags []string, limit, offs
 func (is *ImageStore) UpdateImageTags(ctx context.Context, imageID string, tags []string) error {
 	update := bson.M{
 		"$set": bson.M{
-			"tags":       tags,
-			"updated_at": time.Now(),
+			"tags":      tags,
+			"updatedAt": time.Now(),
 		},
 	}
 
-	result, err := is.metaCollection.UpdateOne(ctx, bson.M{"_id": imageID}, update)
+	result, err := is.metaCollection.UpdateOne(ctx, bson.M{"imageID": imageID}, update)
 	if err != nil {
 		return fmt.Errorf("failed to update tags: %w", err)
 	}
@@ -305,12 +305,12 @@ func (is *ImageStore) UpdateImageTags(ctx context.Context, imageID string, tags 
 func (is *ImageStore) UpdateImageMetadata(ctx context.Context, imageID string, metadata map[string]any) error {
 	update := bson.M{
 		"$set": bson.M{
-			"metadata":   metadata,
-			"updated_at": time.Now(),
+			"metadata":  metadata,
+			"updatedAt": time.Now(),
 		},
 	}
 
-	result, err := is.metaCollection.UpdateOne(ctx, bson.M{"_id": imageID}, update)
+	result, err := is.metaCollection.UpdateOne(ctx, bson.M{"imageID": imageID}, update)
 	if err != nil {
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
@@ -333,9 +333,9 @@ func (is *ImageStore) GetImageStats(ctx context.Context) (map[string]any, error)
 	// Calculate total size
 	pipeline := []bson.M{
 		{"$group": bson.M{
-			"_id":        nil,
-			"total_size": bson.M{"$sum": "$size"},
-			"avg_size":   bson.M{"$avg": "$size"},
+			"_id":       nil,
+			"totalSize": bson.M{"$sum": "$size"},
+			"avgSize":   bson.M{"$avg": "$size"},
 		}},
 	}
 
@@ -346,8 +346,8 @@ func (is *ImageStore) GetImageStats(ctx context.Context) (map[string]any, error)
 	defer cursor.Close(ctx)
 
 	var result struct {
-		TotalSize int64   `bson:"total_size"`
-		AvgSize   float64 `bson:"avg_size"`
+		TotalSize int64   `bson:"totalSize"`
+		AvgSize   float64 `bson:"avgSize"`
 	}
 
 	if cursor.Next(ctx) {
@@ -357,9 +357,9 @@ func (is *ImageStore) GetImageStats(ctx context.Context) (map[string]any, error)
 	}
 
 	stats := map[string]any{
-		"total_count": totalCount,
-		"total_size":  result.TotalSize,
-		"avg_size":    result.AvgSize,
+		"totalCount": totalCount,
+		"totalSize":  result.TotalSize,
+		"avgSize":    result.AvgSize,
 	}
 
 	return stats, nil
@@ -384,7 +384,7 @@ func (is *ImageStore) CleanupOrphanedFiles(ctx context.Context) (int, error) {
 		}
 
 		// Check if corresponding record exists in metadata
-		count, err := is.metaCollection.CountDocuments(ctx, bson.M{"gridfs_id": file.ID})
+		count, err := is.metaCollection.CountDocuments(ctx, bson.M{"gridfsID": file.ID})
 		if err != nil {
 			continue
 		}
