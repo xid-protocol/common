@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/colin-404/logx"
 )
@@ -18,4 +19,8 @@ func SignalHandler() {
 
 	logx.Infof("Received signal: %v", sig)
 	os.Exit(0)
+}
+
+func GetTimestamp() int64 {
+	return time.Now().UnixMilli()
 }
