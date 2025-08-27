@@ -22,6 +22,7 @@ import (
 
 // Error definitions
 var (
+	gridFSBucket          *gridfs.Bucket
 	ErrImageNotFound      = errors.New("image not found")
 	ErrInvalidImageType   = errors.New("invalid image type")
 	ErrImageAlreadyExists = errors.New("image already exists")
@@ -50,7 +51,7 @@ type ImageStore struct {
 // NewImageStore creates a new image store manager
 func NewImageStore() *ImageStore {
 	return &ImageStore{
-		bucket:         GridFSBucket,
+		bucket:         gridFSBucket,
 		metaCollection: GetCollection("imageMetadata"),
 	}
 }
