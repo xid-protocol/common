@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	MongoClient   *mongo.Client
-	MongoDatabase *mongo.Database
-	GridFSBucket  *gridfs.Bucket
+	MongoClient  *mongo.Client
+	MongoDB      *mongo.Database
+	GridFSBucket *gridfs.Bucket
 )
 
 func InitMongoClient(uri string) error {
@@ -64,7 +64,7 @@ func InitMongoDatabase(uri string, dbName string) error {
 		return err
 	}
 
-	MongoDatabase = mongoClient.Database(dbName)
+	MongoDB = mongoClient.Database(dbName)
 	return nil
 }
 
@@ -89,7 +89,7 @@ func InitMongoDBWithGridFS(dbName string, mongoURI string) error {
 
 	logx.Infof("Successfully connected to MongoDB")
 
-	MongoDatabase = client.Database(dbName)
+	MongoDB = client.Database(dbName)
 
 	// Initialize GridFS bucket
 	GridFSBucket, err = gridfs.NewBucket(client.Database(dbName), options.GridFSBucket().SetName("images"))
@@ -114,5 +114,5 @@ func CloseMongoDB() error {
 
 // GetCollection returns a collection from the database
 func GetCollection(collectionName string) *mongo.Collection {
-	return MongoDatabase.Collection(collectionName)
+	return MongoDB.Collection(collectionName)
 }
