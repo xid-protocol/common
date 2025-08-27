@@ -2,45 +2,74 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/colin-404/logx"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/gridfs"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 var (
-	mongoClient *mongo.Database
+	MongoClient   *mongo.Client
+	MongoDatabase *mongo.Database
+	GridFSBucket  *gridfs.Bucket
 )
 
-func InitMongoDB(dbName string, mongoURI string) error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func InitMongoClient(uri string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	var opt options.ClientOptions
+	opt.SetMaxPoolSize(10)
+	opt.SetMinPoolSize(10)
+
+	opt.SetReadPreference(readpref.SecondaryPreferred())
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(uri), &opt)
 	if err != nil {
-		logx.Errorf("Failed to connect to MongoDB: %v", err)
+		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
 		return err
 	}
 
-	// test connection
-	err = client.Ping(ctx, nil)
+	err = mongoClient.Ping(ctx, readpref.Primary())
 	if err != nil {
-		logx.Errorf("Failed to ping MongoDB: %v", err)
+		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
 		return err
 	}
 
-	logx.Infof("Successfully connected to MongoDB")
+	MongoClient = mongoClient
+	return nil
+}
 
-	mongoClient = client.Database(dbName)
+func InitMongoDatabase(uri string, dbName string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
+	var opt options.ClientOptions
+	opt.SetMaxPoolSize(10)
+	opt.SetMinPoolSize(10)
+
+	opt.SetReadPreference(readpref.SecondaryPreferred())
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(uri), &opt)
+	if err != nil {
+		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
+		return err
+	}
+
+	err = mongoClient.Ping(ctx, readpref.Primary())
+	if err != nil {
+		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
+		return err
+	}
+
+	MongoDatabase = mongoClient.Database(dbName)
 	return nil
 }
 
 // InitMongoDB initializes MongoDB connection, if image is true, it will initialize the GridFS bucket
-func InitMongoDBWithGridF(dbName string, mongoURI string) error {
+func InitMongoDBWithGridFS(dbName string, mongoURI string) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -60,10 +89,10 @@ func InitMongoDBWithGridF(dbName string, mongoURI string) error {
 
 	logx.Infof("Successfully connected to MongoDB")
 
-	mongoClient = client.Database(dbName)
+	MongoDatabase = client.Database(dbName)
 
 	// Initialize GridFS bucket
-	_, err = gridfs.NewBucket(client.Database(dbName), options.GridFSBucket().SetName("images"))
+	GridFSBucket, err = gridfs.NewBucket(client.Database(dbName), options.GridFSBucket().SetName("images"))
 	if err != nil {
 		logx.Errorf("Failed to create GridFS bucket: %v", err)
 		return err
@@ -75,15 +104,15 @@ func InitMongoDBWithGridF(dbName string, mongoURI string) error {
 
 // CloseMongoDB closes the MongoDB connection
 func CloseMongoDB() error {
-	if mongoClient != nil {
+	if MongoClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return mongoClient.Client().Disconnect(ctx)
+		return MongoClient.Disconnect(ctx)
 	}
 	return nil
 }
 
 // GetCollection returns a collection from the database
 func GetCollection(collectionName string) *mongo.Collection {
-	return mongoClient.Collection(collectionName)
+	return MongoDatabase.Collection(collectionName)
 }
