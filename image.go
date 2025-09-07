@@ -22,9 +22,11 @@ import (
 
 // Error definitions
 var (
-	ErrImageNotFound      = errors.New("image not found")
-	ErrInvalidImageType   = errors.New("invalid image type")
-	ErrImageAlreadyExists = errors.New("image already exists")
+	ErrImageNotFound           = errors.New("image not found")
+	ErrInvalidImageType        = errors.New("invalid image type")
+	ErrImageAlreadyExists      = errors.New("image already exists")
+	defaultBucketName          = "images"
+	defaultImageMetaCollection = "imageMetadata"
 )
 
 // ImageMeta represents image metadata structure
@@ -41,6 +43,24 @@ type ImageMeta struct {
 	UpdatedAt    time.Time          `bson:"updatedAt" json:"updatedAt"`                   // Update time
 }
 
+// InitMongoDB initializes MongoDB connection, if image is true, it will initialize the GridFS bucket
+func NewGridFSBucket(mongoDatabase *mongo.Database, bucketName string) (*gridfs.Bucket, error) {
+
+	if bucketName == "" {
+		bucketName = defaultBucketName
+	}
+
+	// Initialize GridFS bucket
+	GridFSBucket, err := gridfs.NewBucket(mongoDatabase, options.GridFSBucket().SetName(bucketName))
+	if err != nil {
+		logx.Errorf("Failed to create GridFS bucket: %v", err)
+		return nil, err
+	}
+	logx.Infof("Successfully created GridFS bucket for %s", bucketName)
+
+	return GridFSBucket, nil
+}
+
 // ImageStore manages image storage operations
 type ImageStore struct {
 	bucket         *gridfs.Bucket
@@ -48,11 +68,24 @@ type ImageStore struct {
 }
 
 // NewImageStore creates a new image store manager
-func NewImageStore() *ImageStore {
-	return &ImageStore{
-		bucket:         GridFSBucket,
-		metaCollection: GetCollection("imageMetadata"),
+func NewImageStore(bucket *gridfs.Bucket, imageMetaCollection *mongo.Collection) (*ImageStore, error) {
+	if imageMetaCollection == nil {
+		imageMetaCollection = GetCollection(defaultImageMetaCollection)
 	}
+
+	if bucket == nil {
+		bucket2, err := NewGridFSBucket(GetMongoDatabase(), defaultBucketName)
+		if err != nil {
+			logx.Errorf("Failed to create GridFS bucket: %v", err)
+			return nil, err
+		}
+		bucket = bucket2
+	}
+
+	return &ImageStore{
+		bucket:         bucket,
+		metaCollection: imageMetaCollection,
+	}, nil
 }
 
 // isValidImageType checks if the content type is a valid image type

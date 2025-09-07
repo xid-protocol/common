@@ -1,8 +1,11 @@
 package common
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	uxid "github.com/rs/xid"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // 传入明文生成XID
@@ -29,4 +32,9 @@ func GenerateSHA1(text string) string {
 	xidNS := uuid.NewSHA1(uuid.NameSpaceURL, []byte(text))
 	xid := uuid.NewSHA1(xidNS, []byte(text))
 	return xid.String()
+}
+
+// check xid is exists
+func CheckXidExists(collection string, xid string) bool {
+	return GetCollection(collection).FindOne(context.Background(), bson.M{"xid": xid}).Err() == nil
 }

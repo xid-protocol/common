@@ -3,116 +3,97 @@ package common
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
-	"github.com/colin-404/logx"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/gridfs"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 var (
-	MongoClient  *mongo.Client
-	MongoDB      *mongo.Database
-	GridFSBucket *gridfs.Bucket
+	defaultURI        = "mongodb://admin:admin@127.0.0.1:27017/?authSource=admin"
+	defaultDBName     = "XID"
+	defaultClientOnly = false
+	defaultTimeout    = 5 * time.Second
 )
 
-func InitMongoClient(uri string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+type Mongo struct {
+	mongoClient   *mongo.Client
+	mongoDatabase *mongo.Database
+}
+
+type MongoOptions struct {
+	URI    string
+	DBName string
+	// if true, will only initialize the client, not the database, default is false
+	ClientOnly *bool
+}
+
+var defaultMongo atomic.Pointer[Mongo]
+
+func NewMongo(opts *MongoOptions) (*Mongo, error) {
+	if opts.URI == "" {
+		opts.URI = defaultURI
+	}
+	if opts.DBName == "" {
+		opts.DBName = defaultDBName
+	}
+	if opts.ClientOnly == nil {
+		opts.ClientOnly = &defaultClientOnly
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	var opt options.ClientOptions
-	opt.SetMaxPoolSize(10)
-	opt.SetMinPoolSize(10)
-
-	opt.SetReadPreference(readpref.SecondaryPreferred())
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(uri), &opt)
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(opts.URI))
 	if err != nil {
 		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
-		return err
+		return nil, err
 	}
 
 	err = mongoClient.Ping(ctx, readpref.Primary())
 	if err != nil {
 		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
-		return err
+		return nil, err
 	}
 
-	MongoClient = mongoClient
-	return nil
-}
-
-func InitMongoDatabase(uri string, dbName string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var opt options.ClientOptions
-	opt.SetMaxPoolSize(10)
-	opt.SetMinPoolSize(10)
-
-	opt.SetReadPreference(readpref.SecondaryPreferred())
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(uri), &opt)
-	if err != nil {
-		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
-		return err
+	if *opts.ClientOnly {
+		defaultMongo.Store(&Mongo{
+			mongoClient: mongoClient,
+		})
+		return defaultMongo.Load(), nil
 	}
 
-	err = mongoClient.Ping(ctx, readpref.Primary())
-	if err != nil {
-		fmt.Printf("NEW_MONGO_ERROR %s\n", err.Error())
-		return err
-	}
+	mongoDatabase := mongoClient.Database(opts.DBName)
+	defaultMongo.Store(&Mongo{
+		mongoClient:   mongoClient,
+		mongoDatabase: mongoDatabase,
+	})
 
-	MongoDB = mongoClient.Database(dbName)
-	return nil
-}
+	return defaultMongo.Load(), nil
 
-// InitMongoDB initializes MongoDB connection, if image is true, it will initialize the GridFS bucket
-func InitMongoDBWithGridFS(dbName string, mongoURI string) error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
-	if err != nil {
-		logx.Errorf("Failed to connect to MongoDB: %v", err)
-		return err
-	}
-
-	// test connection
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		logx.Errorf("Failed to ping MongoDB: %v", err)
-		return err
-	}
-
-	logx.Infof("Successfully connected to MongoDB")
-
-	MongoDB = client.Database(dbName)
-
-	// Initialize GridFS bucket
-	GridFSBucket, err = gridfs.NewBucket(client.Database(dbName), options.GridFSBucket().SetName("images"))
-	if err != nil {
-		logx.Errorf("Failed to create GridFS bucket: %v", err)
-		return err
-	}
-	logx.Info("Successfully created GridFS bucket for images")
-
-	return nil
 }
 
 // CloseMongoDB closes the MongoDB connection
 func CloseMongoDB() error {
-	if MongoClient != nil {
+	if defaultMongo.Load().mongoClient != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return MongoClient.Disconnect(ctx)
+		return defaultMongo.Load().mongoClient.Disconnect(ctx)
 	}
 	return nil
 }
 
 // GetCollection returns a collection from the database
 func GetCollection(collectionName string) *mongo.Collection {
-	return MongoDB.Collection(collectionName)
+	return defaultMongo.Load().mongoDatabase.Collection(collectionName)
+}
+
+func GetMongoCli() *mongo.Client {
+	return defaultMongo.Load().mongoClient
+}
+
+func GetMongoDatabase() *mongo.Database {
+	return defaultMongo.Load().mongoDatabase
 }
