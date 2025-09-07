@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -96,4 +97,9 @@ func GetMongoCli() *mongo.Client {
 
 func GetMongoDatabase() *mongo.Database {
 	return defaultMongo.Load().mongoDatabase
+}
+
+// check xid is exists from mongodb
+func CheckXidExistsFromMongo(collection string, xid string) bool {
+	return GetCollection(collection).FindOne(context.Background(), bson.M{"xid": xid}).Err() == nil
 }
