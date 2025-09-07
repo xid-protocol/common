@@ -100,6 +100,6 @@ func GetMongoDatabase() *mongo.Database {
 }
 
 // check xid is exists from mongodb
-func CheckXidExistsFromMongo(collection string, xid string) bool {
-	return GetCollection(collection).FindOne(context.Background(), bson.M{"xid": xid}).Err() == nil
+func CheckXidExistsWithMongo(col *mongo.Collection, xid string, path string) bool {
+	return col.FindOne(context.Background(), bson.M{"xid": xid, "metadata.path": path}).Err() == nil
 }
